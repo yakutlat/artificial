@@ -119,7 +119,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("🔑 LLM 接入配置")
 
-    st.info("💡 **推荐**：使用 **SiliconFlow**（硅基流动），新用户送 14 元免费额度！\n注册地址：cloud.siliconflow.cn")
+    st.info("💡 **推荐**：使用 **SiliconFlow**（硅基流动），新用户送 14 元免费额度！\n注册地址：cloud.siliconflow.cn\n⚠️ 7B模型可能产生数字偏差，建议选 **Qwen2.5-72B-Instruct** 以获得最佳准确度")
 
     api_key_input = st.text_input(
         "API Key",
@@ -287,6 +287,8 @@ def process_question(user_query: str):
 
     with st.spinner("🔍 正在检索知识库并生成回答..."):
         try:
+            from rag_engine import rag_answer, post_process_answer
+
             answer, retrieved = rag_answer(
                 query=user_query,
                 api_key=st.session_state.api_key,
@@ -298,6 +300,9 @@ def process_question(user_query: str):
             # 如果 answer 是生成器，收集完整内容
             if hasattr(answer, '__iter__') and not isinstance(answer, str):
                 answer = "".join(answer)
+
+            # 后处理：修正小模型数字幻觉（如2223→2023）
+            answer = post_process_answer(answer)
 
             st.session_state.messages.append({
                 "role": "assistant",

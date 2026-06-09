@@ -203,6 +203,12 @@ SYSTEM_PROMPT = """你是一名资深金融分析师，专注于A股上市公司
 4. 如涉及风险，主动提示投资风险
 5. 若参考资料中无相关信息，明确告知"知识库中暂无该信息"
 
+⚠️ 数字准确性要求（极其重要）：
+- 严禁修改参考资料中的任何数字，包括年份、金额、百分比
+- 所有年份（如"2023年""2021年""2022年"）必须原样照抄参考资料，不得变为"2223年""2221年"等
+- 小数点和百分号必须精确保留
+- 引用数据时逐字对照原文，确保完全一致
+
 ⚠️ 风险提示：本系统仅供学习研究，不构成任何投资建议。"""
 
 
@@ -259,7 +265,7 @@ def call_llm(system_prompt: str, user_prompt: str, api_key: str = "",
                     model=final_model,
                     messages=messages,
                     stream=True,
-                    temperature=0.3,
+                    temperature=0.1,
                     max_tokens=2048
                 )
                 for chunk in response:
@@ -272,7 +278,7 @@ def call_llm(system_prompt: str, user_prompt: str, api_key: str = "",
                 model=final_model,
                 messages=messages,
                 stream=False,
-                temperature=0.3,
+                temperature=0.1,
                 max_tokens=2048
             )
             return response.choices[0].message.content
@@ -315,6 +321,37 @@ def call_llm(system_prompt: str, user_prompt: str, api_key: str = "",
                 "请稍等 1-2 分钟后重试，或降低提问频率。"
             ) from e
         raise
+
+
+def post_process_answer(text: str) -> str:
+    """
+    后处理：修正小模型常见的数字幻觉，如 2223→2023、2221→2021
+    仅修正明显不合理的未来年份（在知识库覆盖范围之外）
+    """
+    # 规则：将所有 "222x年" 修正为 "202x年"（知识库只覆盖2021-2024年）
+    import re
+
+    fixes = [
+        # 年份修正：2223→2023, 2222→2022, 2221→2021, 2224→2024
+        (r"\b2223年", "2023年"),
+        (r"\b2222年", "2022年"),
+        (r"\b2221年", "2021年"),
+        (r"\b2224年", "2024年"),
+        (r"\b2223\b(?!年)", "2023"),  # 没有"年"的裸数字，如"2023全年"
+        (r"\b2222\b(?!年)", "2022"),
+        (r"\b2221\b(?!年)", "2021"),
+        (r"\b2224\b(?!年)", "2024"),
+        # 金额幻觉：2223亿→2023亿 等
+        (r"\b2223亿", "2023亿"),
+        (r"\b2222亿", "2022亿"),
+        (r"\b2221亿", "2021亿"),
+        (r"\b2224亿", "2024亿"),
+    ]
+
+    for pattern, replacement in fixes:
+        text = re.sub(pattern, replacement, text)
+
+    return text
 
 
 def _mock_answer(user_prompt: str) -> str:
